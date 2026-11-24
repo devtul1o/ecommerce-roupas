@@ -24,8 +24,19 @@ public class SecurityConfig {
             )
             .formLogin(form -> form
                 .loginPage("/login")
-                .defaultSuccessUrl("/", true)
-                .permitAll()
+                .successHandler((request, response, authentication) -> {
+                    boolean isFuncionario = authentication.getAuthorities()
+                            .stream()
+                            .anyMatch(authority ->
+                                    authority.getAuthority().equals("ROLE_FUNCIONARIO"));
+
+                    if (isFuncionario) {
+                        response.sendRedirect("/admin");
+                    } else {
+                        response.sendRedirect("/");
+                    }
+                })
+            .permitAll()
             )
             .logout(logout -> logout
                 .logoutSuccessUrl("/login?logout")
