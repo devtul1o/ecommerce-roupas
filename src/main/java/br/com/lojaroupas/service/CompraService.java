@@ -60,7 +60,7 @@ public class CompraService {
     }
 
     @Transactional
-    public Compra finalizarCompra(Cliente cliente, CheckoutDTO dto) {
+    public Pagamento finalizarCompra(Cliente cliente, CheckoutDTO dto) {
         Carrinho carrinho = carrinhoService.buscarPorCliente(cliente);
         if (carrinho.getItens().isEmpty()) {
             throw new RegraNegocioException("Seu carrinho está vazio.");
@@ -73,7 +73,10 @@ public class CompraService {
             throw new RegraNegocioException("O endereço informado não pertence a este cliente.");
         }
 
-        int qtdParcelas = (dto.numeroParcelas() == null || dto.numeroParcelas() < 1) ? 1 : dto.numeroParcelas();
+        boolean permiteParcelar = dto.metodoPagamento().name().contains("CREDITO");
+        int qtdParcelas = (!permiteParcelar || dto.numeroParcelas() == null || dto.numeroParcelas() < 1)
+            ? 1
+            : dto.numeroParcelas();
 
         // 1. Valida e baixa o estoque de todas as variações
         for (ItemCarrinho item : carrinho.getItens()) {
@@ -82,7 +85,7 @@ public class CompraService {
                 throw new RegraNegocioException("Estoque insuficiente para: " + variacao.getProduto().getNome());
             }
             variacao.setEstoque(variacao.getEstoque() - item.getQuantidade());
-            variacaoRepository.save(variacao);
+            variacaoRepository.save(variacao);        
         }
 
         // 2. Cria e salva a Compra
@@ -132,7 +135,7 @@ public class CompraService {
         // 6. Limpa o carrinho
         carrinhoService.limparCarrinho(carrinho);
 
-        return compraSalva;
+        return pagamentoSalvo;
     }
 
     @Transactional
@@ -151,5 +154,38 @@ public class CompraService {
 
     public List<Compra> listarComprasDoCliente(Cliente cliente) {
         return compraRepository.findByClienteCodPessoa(cliente.getCodPessoa());
+    }
+
+    public Pagamento buscarPagamentoPendenteDoCliente(Long codCompra, Cliente cliente) {
+        Compra compra = compraRepository.findById(codCompra)
+                .orElseThrow(() -> new RegraNegocioException("Pedido não encontrado."));
+
+        if (!compra.getCliente().getCodPessoa().equals(cliente.getCodPessoa())) {
+            throw new RegraNegocioException("Você não tem permissão para acessar este pedido.");
+        }
+        if (compra.getStatus() != StatusCompra.AGUARDANDO_PAGAMENTO) {
+            throw new RegraNegocioException("Este pedido não está mais aguardando pagamento.");
+        }
+
+        return pagamentoRepository.findByCompraCodCompra(codCompra)
+            .stream()
+            .findFirst()
+            .orElseThrow(() -> new RegraNegocioException("Pagamento não encontrado para este pedido."));
+    }
+
+    @Transactional
+    public void cancelarCompra(Long codCompra, Cliente cliente) {
+        Compra compra = compraRepository.findById(codCompra)
+                .orElseThrow(() -> new RegraNegocioException("Pedido não encontrado."));
+
+        if (!compra.getCliente().getCodPessoa().equals(cliente.getCodPessoa())) {
+            throw new RegraNegocioException("Você não tem permissão para cancelar este pedido.");
+        }
+        if (compra.getStatus() != StatusCompra.AGUARDANDO_PAGAMENTO) {
+            throw new RegraNegocioException("Apenas pedidos aguardando pagamento podem ser cancelados.");
+        }
+
+        compra.setStatus(StatusCompra.NEGADA);
+        compraRepository.save(compra);
     }
 }

@@ -82,5 +82,29 @@ public class Compra {
         this.endereco = endereco;
     }
 
+    public List<ItemCompra> getItens() {
+        return itens;
+    }
+
+    public void setItens(List<ItemCompra> itens) {
+        this.itens = itens;
+    }
+
+    public List<Pagamento> getPagamentos() {
+        return pagamentos;
+    }
+
+    public void setPagamentos(List<Pagamento> pagamentos) {
+        this.pagamentos = pagamentos;
+    }
+
+    public Entrega getEntrega() {
+        return entrega;
+    }
+
+    public void setEntrega(Entrega entrega) {
+        this.entrega = entrega;
+    }
+    
     
 }
